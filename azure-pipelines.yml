@@ -7,16 +7,15 @@ pool:
 variables:
   imageName: 'healthcare-app'
   tag: 'latest'
-
   acrServiceConnection: 'acr-Docker-healthcare'
   azureServiceConnection: 'azure-rm-healthcare'
-  sonarServiceConnection: 'healthcare-SonarQube'
+  sonarServiceConnection: 'healthcare_SonarQube'
 
 stages:
 
-# ==================================================
-# STAGE 1: VALIDATE
-# ==================================================
+# ==========================================
+# STAGE 1 - VALIDATE
+# ==========================================
 - stage: Validate
   displayName: 'Validate Code'
 
@@ -38,48 +37,41 @@ stages:
         pip install flake8 pytest
       displayName: 'Install Dependencies'
 
-    # SonarQube Prepare
     - task: SonarQubePrepare@7
-      displayName: 'Prepare SonarQube Analysis'
+      displayName: 'Prepare SonarQube'
       inputs:
-        SonarQube: 'healthcare-SonarQube'
+        SonarQube: 'healthcare_SonarQube'
         scannerMode: 'CLI'
         configMode: 'manual'
         cliProjectKey: 'healthcare-app'
         cliProjectName: 'healthcare-app'
 
-    # Lint
     - script: |
         flake8 app/
       displayName: 'Lint Check'
 
-    # Unit Tests
     - script: |
         export PYTHONPATH=$(Build.SourcesDirectory)
         pytest tests/ -v
       displayName: 'Run Unit Tests'
 
-    # SonarQube Analyze
     - task: SonarQubeAnalyze@7
       displayName: 'Run SonarQube Analysis'
 
-    # SonarQube Publish
     - task: SonarQubePublish@7
       displayName: 'Publish SonarQube Results'
       inputs:
         pollingTimeoutSec: '300'
 
-
-# ==================================================
-# STAGE 2: BUILD DOCKER IMAGE
-# ==================================================
+# ==========================================
+# STAGE 2 - BUILD DOCKER IMAGE
+# ==========================================
 - stage: Build
   displayName: 'Build Docker Image'
   dependsOn: Validate
 
   jobs:
   - job: DockerBuild
-    displayName: 'Build Docker Image'
 
     steps:
 
@@ -98,17 +90,15 @@ stages:
         docker images
       displayName: 'Verify Docker Image'
 
-
-# ==================================================
-# STAGE 3: TRIVY SECURITY SCAN
-# ==================================================
+# ==========================================
+# STAGE 3 - TRIVY SCAN
+# ==========================================
 - stage: SecurityScan
-  displayName: 'Container Security Scan'
+  displayName: 'Security Scan'
   dependsOn: Build
 
   jobs:
   - job: TrivyScan
-    displayName: 'Scan Docker Image'
 
     steps:
 
@@ -126,17 +116,15 @@ stages:
         trivy image --exit-code 1 --severity CRITICAL healthcare-app:latest
       displayName: 'Fail on Critical Vulnerabilities'
 
-
-# ==================================================
-# STAGE 4: PUSH IMAGE TO ACR
-# ==================================================
+# ==========================================
+# STAGE 4 - PUSH IMAGE TO ACR
+# ==========================================
 - stage: PushToACR
-  displayName: 'Push Image to ACR'
+  displayName: 'Push Image To ACR'
   dependsOn: SecurityScan
 
   jobs:
   - job: PushImage
-    displayName: 'Push Docker Image'
 
     steps:
 
