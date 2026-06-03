@@ -5,12 +5,12 @@ app = Flask(__name__)
 
 @app.route("/")
 def home():
-    return "Healthcare App"
+    return "Healthcare App Running"
 
 
 @app.route("/health")
 def health():
-    return "Healthy"
+    return {"status": "healthy"}
 
 
 if __name__ == "__main__":
