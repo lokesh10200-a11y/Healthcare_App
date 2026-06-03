@@ -1,1 +1,149 @@
+trigger:
+- Master
 
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  imageName: 'healthcare-app'
+  tag: 'latest'
+
+  acrServiceConnection: 'acr-Docker-healthcare'
+  azureServiceConnection: 'azure-rm-healthcare'
+
+  sonarServiceConnection: 'healthcare_SonarCloud'
+  sonarOrganization: 'lokesh10'
+  sonarProjectKey: 'lokesh10_Healthcare_App.PROJECT1'
+
+stages:
+
+# =====================================================
+# STAGE 1 - VALIDATE
+# =====================================================
+- stage: Validate
+  displayName: 'Validate Code'
+
+  jobs:
+  - job: Validation
+    displayName: 'Lint Test SonarCloud'
+
+    steps:
+
+    - checkout: self
+
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: '3.11'
+
+    - script: |
+        python -m pip install --upgrade pip
+        pip install -r app/requirements.txt
+        pip install flake8 pytest
+      displayName: 'Install Dependencies'
+
+    - task: SonarCloudPrepare@3
+      displayName: 'Prepare SonarCloud'
+      inputs:
+        SonarCloud: 'healthcare_SonarCloud'
+        organization: 'lokesh10'
+        scannerMode: 'CLI'
+        configMode: 'manual'
+        cliProjectKey: 'lokesh10_Healthcare_App.PROJECT1'
+        cliProjectName: 'Healthcare App'
+
+    - script: |
+        flake8 app/
+      displayName: 'Lint Check'
+
+    - script: |
+        export PYTHONPATH=$(Build.SourcesDirectory)
+        pytest tests/ -v
+      displayName: 'Run Unit Tests'
+
+    - task: SonarCloudAnalyze@3
+      displayName: 'Run SonarCloud Analysis'
+
+    - task: SonarCloudPublish@3
+      displayName: 'Publish SonarCloud Results'
+      inputs:
+        pollingTimeoutSec: '300'
+
+# =====================================================
+# STAGE 2 - BUILD DOCKER IMAGE
+# =====================================================
+- stage: Build
+  displayName: 'Build Docker Image'
+  dependsOn: Validate
+
+  jobs:
+  - job: DockerBuild
+    displayName: 'Docker Build'
+
+    steps:
+
+    - checkout: self
+
+    - task: Docker@2
+      displayName: 'Build Docker Image'
+      inputs:
+        command: build
+        repository: $(imageName)
+        Dockerfile: 'app/Dockerfile'
+        tags: |
+          $(tag)
+
+    - script: |
+        docker images
+      displayName: 'Verify Docker Image'
+
+# =====================================================
+# STAGE 3 - TRIVY SECURITY SCAN
+# =====================================================
+- stage: SecurityScan
+  displayName: 'Security Scan'
+  dependsOn: Build
+
+  jobs:
+  - job: TrivyScan
+    displayName: 'Container Security Scan'
+
+    steps:
+
+    - script: |
+        sudo apt-get update
+        wget https://github.com/aquasecurity/trivy/releases/latest/download/trivy_0.65.0_Linux-64bit.deb
+        sudo dpkg -i trivy_0.65.0_Linux-64bit.deb
+      displayName: 'Install Trivy'
+
+    - script: |
+        trivy image --exit-code 0 healthcare-app:latest
+      displayName: 'Generate Trivy Report'
+
+    - script: |
+        trivy image --exit-code 1 --severity CRITICAL healthcare-app:latest
+      displayName: 'Fail on Critical Vulnerabilities'
+
+# =====================================================
+# STAGE 4 - PUSH IMAGE TO ACR
+# =====================================================
+- stage: PushToACR
+  displayName: 'Push Image To ACR'
+  dependsOn: SecurityScan
+
+  jobs:
+  - job: PushImage
+    displayName: 'Push Docker Image'
+
+    steps:
+
+    - checkout: self
+
+    - task: Docker@2
+      displayName: 'Build and Push Image'
+      inputs:
+        command: buildAndPush
+        containerRegistry: 'acr-Docker-healthcare'
+        repository: $(imageName)
+        Dockerfile: 'app/Dockerfile'
+        tags: |
+          $(tag)
