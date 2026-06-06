@@ -1,7 +1,6 @@
-from app import app
+from app.app import flask_app
 
 def test_home():
-    client = app.test_client()
-    response = client.get('/')
-
+    client = flask_app.test_client()
+    response = client.get("/")
     assert response.status_code == 200
