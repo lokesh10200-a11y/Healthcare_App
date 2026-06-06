@@ -8,8 +8,7 @@ variables:
   imageName: 'healthcare-app'
   tag: 'latest'
 
-  acrServiceConnection: 'acr-Docker-healthcare'
-  sonarServiceConnection: 'sonarqube-project1'
+  acrServiceConnection: 'acr-docker-healthcare-sp'
 
   sonarProjectKey: 'healthcare_app_project1'
   sonarProjectName: 'Healthcare App'
@@ -68,7 +67,7 @@ stages:
         pollingTimeoutSec: '300'
 
 # =====================================================
-# STAGE 2 - BUILD + TRIVY
+# STAGE 2 - BUILD AND SCAN
 # =====================================================
 
 - stage: Build
@@ -108,10 +107,6 @@ stages:
     - script: |
         trivy image --exit-code 0 $(imageName):$(tag)
       displayName: 'Generate Trivy Report'
-
-    - script: |
-        trivy image --exit-code 0 --severity CRITICAL $(imageName):$(tag)
-      displayName: 'Fail On Critical Vulnerabilities'
 
 # =====================================================
 # STAGE 3 - PUSH IMAGE TO ACR
