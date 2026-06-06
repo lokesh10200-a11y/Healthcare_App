@@ -110,16 +110,19 @@ stages:
 
     - script: |
         sudo apt-get update
-        wget https://github.com/aquasecurity/trivy/releases/latest/download/trivy_0.65.0_Linux-64bit.deb
-        sudo dpkg -i trivy_0.65.0_Linux-64bit.deb
+        sudo apt-get install wget -y
+
+        wget -qO- https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin
+
+        trivy --version
       displayName: 'Install Trivy'
 
     - script: |
-        trivy image --exit-code 0 healthcare-app:latest
+        trivy image --exit-code 0 $(imageName):$(tag)
       displayName: 'Generate Trivy Report'
 
     - script: |
-        trivy image --exit-code 1 --severity CRITICAL healthcare-app:latest
+        trivy image --exit-code 1 --severity CRITICAL $(imageName):$(tag)
       displayName: 'Fail on Critical Vulnerabilities'
 
 # =====================================================
