@@ -11,9 +11,9 @@ variables:
   acrServiceConnection: 'acr-Docker-healthcare'
   azureServiceConnection: 'azure-rm-healthcare'
 
-  sonarServiceConnection: 'healthcare_SonarCloud'
-  sonarOrganization: 'lokesh10'
-  sonarProjectKey: 'lokesh10_Healthcare_App.PROJECT1'
+  sonarServiceConnection: 'sonarqube_project1'
+  sonarProjectKey: 'healthcare_app_project1'
+  sonarProjectName: 'Healthcare app'
 
 stages:
 
@@ -25,7 +25,7 @@ stages:
 
   jobs:
   - job: Validation
-    displayName: 'Lint Test SonarCloud'
+    displayName: 'Lint Test SonarQube'
 
     steps:
 
@@ -41,14 +41,13 @@ stages:
         pip install flake8 pytest
       displayName: 'Install Dependencies'
 
-    - task: SonarCloudPrepare@3
-      displayName: 'Prepare SonarCloud'
+    - task: SonarQubePrepare@7
+      displayName: 'Prepare SonarQube'
       inputs:
-        SonarCloud: 'healthcare_SonarCloud'
-        organization: 'lokesh10'
+        SonarQube: 'sonarqube-project1'
         scannerMode: 'CLI'
         configMode: 'manual'
-        cliProjectKey: 'lokesh10_Healthcare_App.PROJECT1'
+        cliProjectKey: 'healthcare_app_project1'
         cliProjectName: 'Healthcare App'
 
     - script: |
@@ -60,11 +59,11 @@ stages:
         pytest tests/ -v
       displayName: 'Run Unit Tests'
 
-    - task: SonarCloudAnalyze@3
-      displayName: 'Run SonarCloud Analysis'
+    - task: SonarQubeAnalyze@7
+      displayName: 'Run SonarQube Analysis'
 
-    - task: SonarCloudPublish@3
-      displayName: 'Publish SonarCloud Results'
+    - task: SonarQubePublish@7
+      displayName: 'Publish SonarQube Results'
       inputs:
         pollingTimeoutSec: '300'
 
