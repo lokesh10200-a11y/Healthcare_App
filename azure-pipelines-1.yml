@@ -1,0 +1,66 @@
+trigger:
+- Master
+
+pool:
+  vmImage: ubuntu-latest
+
+steps:
+
+# Python
+- task: UsePythonVersion@0
+  inputs:
+    versionSpec: '3.11'
+
+# Install dependencies
+- script: |
+    python -m pip install --upgrade pip
+    pip install -r requirements.txt
+    pip install pytest flake8 semgrep pip-audit
+  displayName: 'Install Python tooling'
+
+# Lint
+- script: |
+    flake8 .
+  displayName: 'Lint Python code'
+
+# Unit Tests
+- script: |
+    pytest
+  displayName: 'Run unit tests'
+
+# Semgrep
+- script: |
+    semgrep --config=auto .
+  displayName: 'Run SAST with Semgrep'
+
+# Dependency Scan
+- script: |
+    pip-audit
+  displayName: 'Dependency Scan'
+
+# Terraform Install
+- script: |
+    curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo apt-key add -
+    sudo apt-get update
+    sudo apt-get install terraform -y
+  displayName: 'Install Terraform'
+
+# Terraform Validate
+- script: |
+    cd terraform
+    terraform init -backend=false
+    terraform fmt -check
+    terraform validate
+  displayName: 'Terraform Format and Validate'
+
+# tfsec
+- script: |
+    curl -s https://raw.githubusercontent.com/aquasecurity/tfsec/master/scripts/install_linux.sh | bash
+    tfsec terraform/
+  displayName: 'IaC Scan with tfsec'
+
+# TruffleHog
+- script: |
+    pip install trufflehog
+    trufflehog filesystem .
+  displayName: 'Secret Scan with TruffleHog'
