@@ -6,7 +6,7 @@ pool:
 
 variables:
   imageName: 'healthcare-app'
-  tag: 'latest'
+  tag: '$(Build.BuildId)'
 
   acrServiceConnection: 'acr-docker-healthcare-sp'
 
@@ -24,7 +24,7 @@ stages:
 
   jobs:
   - job: Validation
-    displayName: 'Lint Test SonarQube'
+    displayName: 'Lint Test Security SonarQube'
 
     steps:
 
@@ -37,7 +37,7 @@ stages:
     - script: |
         python -m pip install --upgrade pip
         pip install -r app/requirements.txt
-        pip install pytest flake8
+        pip install pytest flake8 semgrep pip-audit trufflehog
       displayName: 'Install Dependencies'
 
     - task: SonarQubePrepare@7
@@ -57,6 +57,35 @@ stages:
         export PYTHONPATH=$(Build.SourcesDirectory)
         pytest tests/ -v
       displayName: 'Run Pytest'
+
+    - script: |
+        semgrep --config=auto .
+      displayName: 'Run SAST with Semgrep'
+
+    - script: |
+        pip-audit
+      displayName: 'Dependency Scan with pip-audit'
+
+    - task: TerraformInstaller@1
+      displayName: 'Install Terraform'
+      inputs:
+        terraformVersion: 'latest'
+
+    - script: |
+        cd terraform
+        terraform init -backend=false
+        terraform fmt -check
+        terraform validate
+      displayName: 'Terraform Format and Validate'
+
+    - script: |
+        curl -s https://raw.githubusercontent.com/aquasecurity/tfsec/master/scripts/install_linux.sh | bash
+        tfsec terraform/
+      displayName: 'IaC Scan with tfsec'
+
+    - script: |
+        trufflehog filesystem .
+      displayName: 'Secret Scan with TruffleHog'
 
     - task: SonarQubeAnalyze@7
       displayName: 'Analyze Code'
@@ -85,11 +114,12 @@ stages:
     - task: Docker@2
       displayName: 'Build Docker Image'
       inputs:
-        command: 'build'
+        command: build
         repository: '$(imageName)'
         Dockerfile: 'app/Dockerfile'
         tags: |
-          $(tag)
+          $(Build.BuildId)
+          latest
 
     - script: |
         docker images
@@ -105,7 +135,7 @@ stages:
       displayName: 'Install Trivy'
 
     - script: |
-        trivy image --exit-code 0 $(imageName):$(tag)
+        trivy image --exit-code 0 $(imageName):$(Build.BuildId)
       displayName: 'Generate Trivy Report'
 
 # =====================================================
@@ -127,9 +157,10 @@ stages:
     - task: Docker@2
       displayName: 'Build And Push Image'
       inputs:
-        command: 'buildAndPush'
+        command: buildAndPush
         containerRegistry: '$(acrServiceConnection)'
         repository: '$(imageName)'
         Dockerfile: 'app/Dockerfile'
         tags: |
-          $(tag)
+          $(Build.BuildId)
+          latest
